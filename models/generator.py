@@ -28,22 +28,3 @@ class linear_Generator(nn.Module):
         img = self.model(z)
         img = img.view(img.size(0), *self.img_shape)
         return img
-
-# Define linear discriminator network
-class linear_Discriminator(nn.Module):
-    def __init__(self, img_shape):
-        super().__init__()
-
-        self.model = nn.Sequential(
-			nn.Linear(int(np.prod(img_shape)), 512),
-			nn.LeakyReLU(0.2, inplace=True),
-			nn.Linear(512, 256),
-			nn.LeakyReLU(0.2, inplace=True),
-			nn.Linear(256, 1),
-			nn.Sigmoid()
-		)
-
-    def forward(self, img):
-        img_flat = img.view(img.size(0), -1)
-        verdict = self.model(img_flat)
-        return verdict
