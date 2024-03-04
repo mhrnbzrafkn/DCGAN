@@ -2,7 +2,7 @@ import numpy as np
 import torch.nn as nn
 
 # Define linear generator network
-class linear_Generator(nn.Module):
+class LinearGenerator(nn.Module):
     def __init__(self, img_shape, latent_dim):
         super().__init__()
 
@@ -27,4 +27,31 @@ class linear_Generator(nn.Module):
     def forward(self, z):
         img = self.model(z)
         img = img.view(img.size(0), *self.img_shape)
+        return img
+    
+class CNN_Generator(nn.Module):
+    def __init__(self, img_shape, latent_dim):
+        super().__init__()
+
+        self.img_shape = img_shape
+
+        def conv_block(in_channels, out_channels, kernel_size, stride, padding, normalize=True):
+            layers = [nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)]
+            if normalize:
+                layers.append(nn.BatchNorm2d(out_channels))
+            layers.append(nn.ReLU(inplace=True))
+            return layers
+        
+        self.model = nn.Sequential(
+            *conv_block(latent_dim, 1024, 4, 1, 0, normalize=False),
+            *conv_block(1024, 512, 4, 2, 1),
+            *conv_block(512, 256, 4, 2, 1),
+            *conv_block(256, 128, 4, 2, 1),
+            nn.ConvTranspose2d(128, img_shape[0], 4, 2, 1),
+            nn.Tanh()
+        )
+
+    def forward(self, z):
+        z = z.view(z.size(0), z.size(1), 1, 1)  # Reshape input for convolutional layers
+        img = self.model(z)
         return img
