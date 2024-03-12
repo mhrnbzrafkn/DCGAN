@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random Face Generator</title>
+  <style>
+    body, html {
+      margin: 0;
+      align-items: center;
+      text-align: center;
+    }
+
+    #header-text{
+      padding: 10px;
+    }
+
+    #image-container{
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    #image-container img {
+      width: 256px;
+      height: 256px;
+    }
+
+    #input-container {
+      text-align: center;
+      margin: auto;
+    }
+
+    #input-container input {
+      margin-bottom: 10px;
+      margin: auto;
+      width: 500px;
+    }
+
+    .random-button {
+      margin-left: 5px;
+      font-size: 10px;
+      padding: 2px 5px;
+    }
+
+    #random-button {
+      margin-top: 20px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
+</head>
+<body>
+  <h1 id="header-text">Random Face Generator</h1>
+  <div id="image-container"></div>
+  <div id="input-container">
+
+    <!-- Track-bars for each input value -->
+    <input type="range" id="input0" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(0)">
+    <button class="random-button" onclick="setRandomValue(0)">↻</button><br>
+    
+    <input type="range" id="input1" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(1)">
+    <button class="random-button" onclick="setRandomValue(1)">↻</button><br>
+    
+    <input type="range" id="input2" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(2)">
+    <button class="random-button" onclick="setRandomValue(2)">↻</button><br>
+    
+    <input type="range" id="input3" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(3)">
+    <button class="random-button" onclick="setRandomValue(3)">↻</button><br>
+    
+    <input type="range" id="input4" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(2)">
+    <button class="random-button" onclick="setRandomValue(4)">↻</button><br>
+    
+    <input type="range" id="input5" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(5)">
+    <button class="random-button" onclick="setRandomValue(5)">↻</button><br>
+    
+    <input type="range" id="input6" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(6)">
+    <button class="random-button" onclick="setRandomValue(6)">↻</button><br>
+    
+    <input type="range" id="input7" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(7)">
+    <button class="random-button" onclick="setRandomValue(7)">↻</button><br>
+    
+    <!-- Button to set random values for all track-bars -->
+    <button id="random-button" onclick="setRandomValues()">Generate Random Face ↻</button>
+  </div>
+
+  <script>
+    // Define initial input array
+    let inputs = [0, 0, 0, 0, 0, 0, 0, 0];
+
+    generateImage();
+
+    // Function to update input values when track-bar value changes
+    function updateInputs(index) {
+      inputs[index] = parseFloat(document.getElementById(`input${index}`).value);
+      generateImage();
+    }
+
+    // Function to generate random value for a specific track-bar
+    function setRandomValue(index) {
+      inputs[index] = Math.random() * 4 - 2; // Random value between -2 and 2
+      document.getElementById(`input${index}`).value = inputs[index]; // Update input element
+      generateImage(); // Generate image with new random value
+    }
+
+    // Function to set random values for all track-bars
+    function setRandomValues() {
+      for (let i = 0; i < inputs.length; i++) {
+        inputs[i] = Math.random() * 4 - 2; // Random value between -2 and 2
+        document.getElementById(`input${i}`).value = inputs[i]; // Update input element
+      }
+      generateImage(); // Generate image with new random values
+    }
+
+    async function generateImage() {
+      // Send POST request to Flask API with the updated input array
+      const response = await fetch('http://127.0.0.1:5000/get-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ inputs: inputs })
+      });
+
+      // Parse JSON response
+      const data = await response.blob();
+
+      if (response.ok) {
+        // Clear previous images
+        document.getElementById('image-container').innerHTML = '';
+
+        // Create image element
+        const img = new Image();
+        // Set image source to the URL of the generated image
+        img.src = URL.createObjectURL(data);
+        // Set image size
+        img.width = 256;
+        img.height = 256;
+        // Append image to the container
+        document.getElementById('image-container').appendChild(img);
+      } else {
+        // Display error message
+        alert('Error: Unable to generate image.');
+      }
+    }
+  </script>
+</body>
+</html>
