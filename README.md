@@ -19,7 +19,7 @@ pip install -r requirements.txt
 ```
 3. Execute the Python script inside the `./src` folder to train the model and generate images:
 ```bash
-python ./src/main.py
+python ./src/run.py
 ```
 Make sure to customize the paths and parameters according to your dataset and preferences within the script before running it. Happy generating!
 
