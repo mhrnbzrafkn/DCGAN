@@ -15,8 +15,13 @@ OUTPUT_IMAGE_ROWS = int(math.sqrt(NUMBER_OF_OUTPUT_IMAGES))
 
 BASE_PATH = './training-src/output_results'
 
-INPUT_VECTOR_LENGTH = 8
-TRAINED_MODELS_PATH = f'{BASE_PATH}/trained_models'
+INPUT_VECTOR_LENGTH = 64
+TRAINED_MODELS_PATH = f'{BASE_PATH}/'
+
+NEURALNET_DEEP = 64
+
+# Define the pattern to match filenames
+PATTERN = re.compile(r'^generator-\d+\.pth$')
 
 OUTPUT_IMAGE_FORMAT = 'JPEG'
 
@@ -24,26 +29,28 @@ OUTPUT_IMAGE_FORMAT = 'JPEG'
 class Generator(nn.Module):
     def __init__(self, input_vector_length):
         super(Generator, self).__init__()
-        self.fc1 = nn.Linear(input_vector_length, 4*4*1024)
+        self.deep = NEURALNET_DEEP
+
+        self.fc1 = nn.Linear(input_vector_length, 4*4*self.deep*8)
         
-        self.conv1 = nn.ConvTranspose2d(in_channels=1024, out_channels=512, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(512)
+        self.conv1 = nn.ConvTranspose2d(in_channels=self.deep*8, out_channels=self.deep*4, kernel_size=4, stride=2, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(self.deep*4)
         self.relu1 = nn.ReLU(inplace=True)
 
-        self.conv2 = nn.ConvTranspose2d(in_channels=512, out_channels=256, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(256)
+        self.conv2 = nn.ConvTranspose2d(in_channels=self.deep*4, out_channels=self.deep*2, kernel_size=4, stride=2, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(self.deep*2)
         self.relu2 = nn.ReLU(inplace=True)
 
-        self.conv3 = nn.ConvTranspose2d(in_channels=256, out_channels=128, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(128)
+        self.conv3 = nn.ConvTranspose2d(in_channels=self.deep*2, out_channels=self.deep, kernel_size=4, stride=2, padding=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(self.deep)
         self.relu3 = nn.ReLU(inplace=True)
 
-        self.conv4 = nn.ConvTranspose2d(in_channels=128, out_channels=3, kernel_size=4, stride=2, padding=1, bias=False)
+        self.conv4 = nn.ConvTranspose2d(in_channels=self.deep, out_channels=3, kernel_size=4, stride=2, padding=1, bias=False)
         self.tanh = nn.Tanh()
 
     def forward(self, x):
         x = self.fc1(x)
-        x = x.view(-1, 1024, 4, 4)
+        x = x.view(-1, self.deep*8, 4, 4)
         x = self.relu1(self.bn1(self.conv1(x)))
         x = self.relu2(self.bn2(self.conv2(x)))
         x = self.relu3(self.bn3(self.conv3(x)))
@@ -72,9 +79,6 @@ def generate_image(inputs, matching_files):
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-# Define the pattern to match filenames
-pattern = re.compile(r'^generator-\d+\.pth$')
-
 @app.route('/get-image-json', methods=['POST'])
 def get_image_json():
     data = request.json
@@ -84,7 +88,7 @@ def get_image_json():
     all_files = os.listdir(TRAINED_MODELS_PATH)
 
     # Filter out files that match the pattern
-    matching_files = [file for file in all_files if pattern.match(file)]
+    matching_files = [file for file in all_files if PATTERN.match(file)]
 
     # Load the state_dict from the first matching file
     if matching_files:
@@ -114,14 +118,14 @@ def get_image():
     all_files = os.listdir(TRAINED_MODELS_PATH)
 
     # Filter out files that match the pattern
-    matching_files = [file for file in all_files if pattern.match(file)]
+    matching_files = [file for file in all_files if PATTERN.match(file)]
 
     # Load the state_dict from the first matching file
     if matching_files:
         generator_output = generate_image(inputs, matching_files)
 
         # Save the image to a temporary file
-        temp_image_path = f'{BASE_PATH}generated_test_images/temp_generated_image.png'
+        temp_image_path = f'{BASE_PATH}/generated_test_images/temp_generated_image.png'
         save_image(generator_output.data, temp_image_path, nrow=4, normalize=True)
     
         # Convert tensor to PIL Image

@@ -53,42 +53,47 @@
 <body>
   <h1 id="header-text">Random Face Generator</h1>
   <div id="image-container"></div>
+  <button id="random-button" onclick="setRandomValues()">Generate Random Face ↻</button>
   <div id="input-container">
-
-    <!-- Track-bars for each input value -->
-    <input type="range" id="input0" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(0)">
-    <button class="random-button" onclick="setRandomValue(0)">↻</button><br>
-    
-    <input type="range" id="input1" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(1)">
-    <button class="random-button" onclick="setRandomValue(1)">↻</button><br>
-    
-    <input type="range" id="input2" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(2)">
-    <button class="random-button" onclick="setRandomValue(2)">↻</button><br>
-    
-    <input type="range" id="input3" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(3)">
-    <button class="random-button" onclick="setRandomValue(3)">↻</button><br>
-    
-    <input type="range" id="input4" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(2)">
-    <button class="random-button" onclick="setRandomValue(4)">↻</button><br>
-    
-    <input type="range" id="input5" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(5)">
-    <button class="random-button" onclick="setRandomValue(5)">↻</button><br>
-    
-    <input type="range" id="input6" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(6)">
-    <button class="random-button" onclick="setRandomValue(6)">↻</button><br>
-    
-    <input type="range" id="input7" min="-2" max="2" value="0" step="0.01" onchange="updateInputs(7)">
-    <button class="random-button" onclick="setRandomValue(7)">↻</button><br>
-    
-    <!-- Button to set random values for all track-bars -->
-    <button id="random-button" onclick="setRandomValues()">Generate Random Face ↻</button>
+    <!-- Input elements will be dynamically generated here -->
   </div>
 
   <script>
     // Define initial input array
-    let inputs = [0, 0, 0, 0, 0, 0, 0, 0];
+    let inputs = [];
 
-    generateImage();
+    // Number of input elements
+    const numInputs = 64;
+
+    // Generate input elements
+    function generateInputs() {
+      const inputContainer = document.getElementById('input-container');
+      inputContainer.innerHTML = ''; // Clear previous inputs
+
+      for (let i = 0; i < numInputs; i++) {
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.id = `input${i}`;
+        input.min = -2;
+        input.max = 2;
+        input.value = 0;
+        input.step = 0.01;
+        input.onchange = () => updateInputs(i);
+
+        const button = document.createElement('button');
+        button.className = 'random-button';
+        button.textContent = '↻';
+        button.onclick = () => setRandomValue(i);
+
+        inputContainer.appendChild(input);
+        inputContainer.appendChild(button);
+        inputContainer.appendChild(document.createElement('br'));
+
+        inputs.push(0); // Initialize inputs array
+      }
+    }
+
+    generateInputs(); // Generate input elements initially
 
     // Function to update input values when track-bar value changes
     function updateInputs(index) {
