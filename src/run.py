@@ -1,10 +1,10 @@
 import os
+import re
+import csv
 import torch
-import imageio
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
-import matplotlib.pyplot as plt
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
@@ -35,140 +35,232 @@ os.makedirs(GENERATED_TEST_IMAGES_PATH, exist_ok=True)
 TRAINING_IMAGES_PATH = f'{RESOURCES_PATH}/training_images'
 
 ### Hyperparameters ###
-INPUT_VECTOR_LENGTH = 64
+INPUT_VECTOR_LENGTH = 256
+NEURALNET_DEEP = 64
 OUTPUT_IMAGE_SHAPE = (3, 64, 64)
-BATCH_SIZE = 16
-EPOCHS = 50
-LEARNING_RATE = 0.0001
+
+GENERATOR_LEARNING_RATE = 0.0003
+DISCRIMINATOR_LEARNING_RATE = 0.0001
+
+MAX_EPOCHS = 1000
+BATCH_SIZE = 64
 SAVE_OUTPUT_IMAGE_STEP = 1
 
-NEURALNET_DEEP = 64
-
-### Generator Model ###
 class Generator(nn.Module):
-    def __init__(self, input_vector_length):
+    def __init__(self, noise_size: int, deep: int):
         super(Generator, self).__init__()
-        self.deep = NEURALNET_DEEP
+        momentum = 0.8
+        eps = 0.00001
 
-        self.fc1 = nn.Linear(input_vector_length, 4*4*self.deep*8)
-        
-        self.conv1 = nn.ConvTranspose2d(in_channels=self.deep*8, out_channels=self.deep*4, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(self.deep*4)
-        self.relu1 = nn.ReLU(inplace=True)
+        self.model = nn.Sequential(
+            # Input: [256]
+            nn.Linear(noise_size, deep*8*4*4),
+            nn.LeakyReLU(0.2),
+            # [8192]
 
-        self.conv2 = nn.ConvTranspose2d(in_channels=self.deep*4, out_channels=self.deep*2, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(self.deep*2)
-        self.relu2 = nn.ReLU(inplace=True)
+            nn.Unflatten(1, (deep*8, 4, 4)),
+            # [512, 4, 4]
 
-        self.conv3 = nn.ConvTranspose2d(in_channels=self.deep*2, out_channels=self.deep, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(self.deep)
-        self.relu3 = nn.ReLU(inplace=True)
+            nn.ConvTranspose2d(deep*8, deep*4, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(deep*4, momentum, eps),
+            nn.LeakyReLU(0.2),
+            # [256, 8, 8]
 
-        self.conv4 = nn.ConvTranspose2d(in_channels=self.deep, out_channels=3, kernel_size=4, stride=2, padding=1, bias=False)
-        self.tanh = nn.Tanh()
+            nn.ConvTranspose2d(deep*4, deep*2, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(deep*2, momentum, eps),
+            nn.LeakyReLU(0.2),
+            # [128, 16, 16]
+
+            nn.ConvTranspose2d(deep*2, deep, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(deep, momentum, eps),
+            nn.LeakyReLU(0.2),
+            # [64, 32, 32]
+
+            nn.ConvTranspose2d(deep, OUTPUT_IMAGE_SHAPE[0], kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(OUTPUT_IMAGE_SHAPE[0], momentum, eps),
+            nn.Tanh(),
+            # Output: [3, 64, 64]
+        )
 
     def forward(self, x):
-        x = self.fc1(x)
-        x = x.view(-1, self.deep*8, 4, 4)
-        x = self.relu1(self.bn1(self.conv1(x)))
-        x = self.relu2(self.bn2(self.conv2(x)))
-        x = self.relu3(self.bn3(self.conv3(x)))
-        x = self.conv4(x)
-        x = self.tanh(x)
-        return x
+        return self.model(x)
 
-### Discriminator Model ###
 class Discriminator(nn.Module):
-    def __init__(self, output_img_shape):
+    def __init__(self, img_shape: tuple, deep: int):
         super(Discriminator, self).__init__()
-        self.deep = NEURALNET_DEEP
+        momentum = 0.8
+        eps = 0.00001
 
-        self.conv1 = nn.Conv2d(in_channels=output_img_shape[0], out_channels=self.deep*8, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(self.deep*8)
-        self.leaky_relu1 = nn.LeakyReLU(0.2, inplace=True)
+        self.model = nn.Sequential(
+            # Input: [3, 64, 64]
+            nn.Conv2d(img_shape[0], deep, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(deep, momentum, eps),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(0.1),
+            # [64, 32, 32]
 
-        self.conv2 = nn.Conv2d(in_channels=self.deep*8, out_channels=self.deep*4, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(self.deep*4)
-        self.leaky_relu2 = nn.LeakyReLU(0.2, inplace=True)
+            nn.Conv2d(deep, deep*2, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(deep*2, momentum, eps),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(0.1),
+            # [128, 16, 16]
 
-        self.conv3 = nn.Conv2d(in_channels=self.deep*4, out_channels=self.deep*2, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(self.deep*2)
-        self.leaky_relu3 = nn.LeakyReLU(0.2, inplace=True)
+            nn.Conv2d(deep*2, deep*4, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(deep*4, momentum, eps),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(0.1),
+            # [256, 8, 8]
 
-        self.conv4 = nn.Conv2d(in_channels=self.deep*2, out_channels=self.deep, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn4 = nn.BatchNorm2d(self.deep)
-        self.leaky_relu4 = nn.LeakyReLU(0.2, inplace=True)
+            nn.Conv2d(deep*4, deep*8, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(deep*8, momentum, eps),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(0.1),
+            # [512, 4, 4]
+            
+            nn.Flatten(),
+            # [8192]
 
-        self.conv5 = nn.Conv2d(in_channels=self.deep, out_channels=1, kernel_size=4, stride=1, padding=0, bias=False)
-        self.sigmoid = nn.Sigmoid()
+            nn.Linear(deep*8*4*4, 1),
+            nn.Sigmoid()
+            # [1]
+        )
 
-    def forward(self, img):
-        x = self.leaky_relu1(self.bn1(self.conv1(img)))
-        x = self.leaky_relu2(self.bn2(self.conv2(x)))
-        x = self.leaky_relu3(self.bn3(self.conv3(x)))
-        x = self.leaky_relu4(self.bn4(self.conv4(x)))
-        x = self.sigmoid(self.conv5(x))
-        return x.view(-1, 1)
+    def forward(self, x):
+        return self.model(x)
 
 ### Save models ###
-def save_models(generator, discriminator, epoch, saving_outputs_step):
+def save_models(generator: Generator, discriminator: Discriminator, epoch: int, saving_outputs_step: int):
     # Define file paths for the models
-    generator_path = f'{TRAINED_MODELS_PATH}/generator-{epoch+1}.pth'
-    discriminator_path = f'{TRAINED_MODELS_PATH}/discriminator-{epoch+1}.pth'
+    generator_path = f'{TRAINED_MODELS_PATH}/generator-{epoch+1}.pt'
+    generator_scripted_path = f'{TRAINED_MODELS_PATH}/generator-scripted-{epoch+1}.pt'
 
-    # Check if old models exist and remove them
-    if (epoch > 0 and 
-        os.path.exists(f'{TRAINED_MODELS_PATH}/generator-{epoch - saving_outputs_step}.pth') and
-        os.path.exists(f'{TRAINED_MODELS_PATH}/discriminator-{epoch - saving_outputs_step}.pth')):
-        os.remove(f'{TRAINED_MODELS_PATH}/generator-{epoch - saving_outputs_step}.pth')
-        os.remove(f'{TRAINED_MODELS_PATH}/discriminator-{epoch - saving_outputs_step}.pth')
+    discriminator_path = f'{TRAINED_MODELS_PATH}/discriminator-{epoch+1}.pt'
+    discriminator_scripted_path = f'{TRAINED_MODELS_PATH}/discriminator-scripted-{epoch+1}.pt'
 
     # Save new models
     torch.save(generator.state_dict(), generator_path)
+    scripted_generator = torch.jit.script(generator)
+    scripted_generator.save(generator_scripted_path)
+
     torch.save(discriminator.state_dict(), discriminator_path)
+    scripted_discriminator = torch.jit.script(discriminator)
+    scripted_discriminator.save(discriminator_scripted_path)
 
-### Visualizing the losses at every epoch ###
-def report_training_process(losses, images_for_gif):
-    losses = np.array(losses)
-    plt.plot(losses.T[0], label='Generator')
-    plt.plot(losses.T[1], label='Discriminator')
-    plt.title("Training Losses")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.savefig(f'{OUTPUT_REPORT_PATH}/loss_plot.png')
+    # Check if old models exist and remove them
+    if epoch >= saving_outputs_step:
+        prev_epoch = epoch - saving_outputs_step + 1
+        prev_generator_path = f'{TRAINED_MODELS_PATH}/generator-{prev_epoch}.pt'
+        prev_scripted_generator_path = f'{TRAINED_MODELS_PATH}/generator-scripted-{prev_epoch}.pt'
 
-    # Creating a gif of generated images at every epoch
-    imageio.mimwrite(f'{OUTPUT_REPORT_PATH}/generated_images.gif', images_for_gif, fps=20)
+        prev_discriminator_path = f'{TRAINED_MODELS_PATH}/discriminator-{prev_epoch}.pt'
+        prev_scripted_discriminator_path = f'{TRAINED_MODELS_PATH}/discriminator-scripted-{prev_epoch}.pt'
+
+        if os.path.exists(prev_generator_path):
+            os.remove(prev_generator_path)
+        if os.path.exists(prev_scripted_generator_path):
+            os.remove(prev_scripted_generator_path)
+        
+        if os.path.exists(prev_discriminator_path):
+            os.remove(prev_discriminator_path)
+        if os.path.exists(prev_scripted_discriminator_path):
+            os.remove(prev_scripted_discriminator_path)
+
+def load_scripted_model(model_path: str):
+    """
+    Load scripted torch model.
+
+    Args:
+    - model_path (str): Path to the scripted torch model.
+    """
+    return torch.jit.load(model_path)
+
+def load_model(model: nn.Module, model_path: str):
+    """
+    Load torch model.
+
+    Args:
+    - model (torch.nn.Module): Defined model class.
+    - model_path (str): Path to the torch model.
+    """
+    model_state_dict = torch.load(model_path)
+    model.load_state_dict(model_state_dict)
+    model.eval()
+    return model
+
+def load_models(device: torch.device):
+    generator_pattern = re.compile(r'^generator-\d+\.pt$')
+    all_files = os.listdir(TRAINED_MODELS_PATH)
+    matching_files = [file for file in all_files if generator_pattern.match(file)]
+    if matching_files:
+        print("01- Loading Generator.")
+        generator = Generator(INPUT_VECTOR_LENGTH, NEURALNET_DEEP).to(device)
+        matching_file_path = os.path.join(TRAINED_MODELS_PATH, matching_files[0])
+        generator_state_dict = torch.load(matching_file_path, map_location=device)
+        generator.load_state_dict(generator_state_dict)
+        generator.train()
+    else:
+        print("01- Creating Generator.")
+        generator = Generator(INPUT_VECTOR_LENGTH, NEURALNET_DEEP).to(device)
+
+    discriminator_pattern = re.compile(r'^discriminator-\d+\.pt$')
+    all_files = os.listdir(TRAINED_MODELS_PATH)
+    matching_files = [file for file in all_files if discriminator_pattern.match(file)]
+    if matching_files:
+        print("01- Loading Discriminator.")
+        discriminator = Discriminator(OUTPUT_IMAGE_SHAPE, NEURALNET_DEEP).to(device)
+        matching_file_path = os.path.join(TRAINED_MODELS_PATH, matching_files[0])
+        discriminator_state_dict = torch.load(matching_file_path, map_location=device)
+        discriminator.load_state_dict(discriminator_state_dict)
+        discriminator.train()
+    else:
+        print("02- Creating Discriminator.")
+        discriminator = Discriminator(OUTPUT_IMAGE_SHAPE, NEURALNET_DEEP).to(device)
+
+    return generator, discriminator
+
+def save_losses_to_csv(generator_losses: list, discriminator_losses: list, generator_csv_path: str, discriminator_csv_path: str):
+    """
+    Save generator and discriminator losses to separate CSV files.
+
+    Args:
+    - generator_losses (list): List of generator losses.
+    - discriminator_losses (list): List of discriminator losses.
+    - generator_csv_path (str): File path for the CSV file to save generator losses.
+    - discriminator_csv_path (str): File path for the CSV file to save discriminator losses.
+    """
+    # Write generator losses to CSV file
+    with open(generator_csv_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Epoch', 'Generator Loss'])
+        for epoch, loss in enumerate(generator_losses, start=1):
+            writer.writerow([epoch, loss])
+
+    # Write discriminator losses to CSV file
+    with open(discriminator_csv_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Epoch', 'Discriminator Loss'])
+        for epoch, loss in enumerate(discriminator_losses, start=1):
+            writer.writerow([epoch, loss])
 
 ### Data preprocessing and loading ###
 def create_transform():
     return transforms.Compose([
-        transforms.Resize((64, 64)),
+        transforms.Resize((OUTPUT_IMAGE_SHAPE[1], OUTPUT_IMAGE_SHAPE[2])),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-def train(losses, images_for_gif):
+# def train(losses, output_gif_images):
+def train(generator_losses: list, discriminator_losses: list):
     # Check if GPU is available
-    if torch.cuda.is_available():
-        device = torch.device("cuda")  # Use GPU
-        print("00- Using GPU for training.")
-    else:
-        device = torch.device("cpu")   # Use CPU
-        print("00- GPU not available, using CPU for training.")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print(f'00- Using {device}.')
 
-    print("01- Creating Generator completed.")
-    generator = Generator(INPUT_VECTOR_LENGTH).to(device)
-    # generator.apply(weights_init)
-
-    print("02- Creating Discriminator completed.")
-    discriminator = Discriminator(OUTPUT_IMAGE_SHAPE).to(device)
-    # discriminator.apply(weights_init)
+    generator, discriminator = load_models(device)
 
     print("03- Setting the optimizers completed.")
     adversarial_loss  = nn.BCELoss()
-    optimizer_generator = optim.Adam(generator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
-    optimizer_discriminator = optim.Adam(discriminator.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
+    optimizer_generator = optim.Adam(generator.parameters(), lr=GENERATOR_LEARNING_RATE, betas=(0.5, 0.999))
+    optimizer_discriminator = optim.Adam(discriminator.parameters(), lr=GENERATOR_LEARNING_RATE, betas=(0.5, 0.999))
 
     # Data preprocessing and loading
     transform = create_transform()
@@ -177,26 +269,18 @@ def train(losses, images_for_gif):
     # Loading my custome dataset
     dataset = datasets.ImageFolder(root=TRAINING_IMAGES_PATH, transform=transform)
 
-    # Define the sizes of training and validation sets
-    train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-
-    # Split the dataset into training and validation sets
-    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
-
     print("05- Generate data loaders.")
-    # Generate data loaders for training and validation
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    data_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
     Tensor = torch.FloatTensor
 
     print("06- Training loop started.")
     # Training loop
-    for epoch in range(EPOCHS):
+    for current_epoch in range(MAX_EPOCHS):
         # Training
         generator.train()
         discriminator.train()
-        for i, (images, _) in enumerate(train_loader):
+        # for i, (images, _) in enumerate(train_loader):
+        for i, (images, _) in enumerate(data_loader):
             # Configure input
             real_images = Variable(images.type(Tensor)).to(device)
 
@@ -207,7 +291,7 @@ def train(losses, images_for_gif):
             # Training Generator
             optimizer_generator.zero_grad()
             z = Variable(Tensor(np.random.normal(0, 1, (images.shape[0], INPUT_VECTOR_LENGTH))).float()).to(device)
-            generated_images = generator(z)
+            generated_images = generator(z).to(device)
             generator_loss = adversarial_loss(discriminator(generated_images), real_output)
             generator_loss.backward()
             optimizer_generator.step()
@@ -219,61 +303,41 @@ def train(losses, images_for_gif):
             discriminator_loss = (discriminator_loss_real + discriminator_loss_fake) / 2
             discriminator_loss.backward()
             optimizer_discriminator.step()
-            
-            # Save losses
-            # losses.append((generator_loss, discriminator_loss))
-            # losses.append((generator_loss.detach().item(), discriminator_loss.detach().item()))
 
-            print(f"[Epoch {epoch + 1:=4d}/{EPOCHS}] [Batch {i + 1:=4d}/{len(train_loader)}] ---> "
+            print(f"[Epoch {current_epoch + 1:=4d}/{MAX_EPOCHS}] [Batch {i + 1:=4d}/{len(data_loader)}] ---> "
                 f"[D Loss: {discriminator_loss.item():.6f}] [G Loss: {generator_loss.item():.6f}]")
 
-        # Validation
-        generator.eval()
-        discriminator.eval()
-        val_losses = []
-        with torch.no_grad():
-            for images, _ in val_loader:
-                real_images = Variable(images.type(Tensor)).to(device)
-                real_output = Variable(Tensor(images.size(0), 1).fill_(1.0), requires_grad=False).to(device)
-                fake_output = Variable(Tensor(images.size(0), 1).fill_(0.0), requires_grad=False).to(device)
-
-                z = Variable(Tensor(np.random.normal(0, 1, (images.shape[0], INPUT_VECTOR_LENGTH))).float()).to(device)
-                generated_images = generator(z)
-                generator_loss = adversarial_loss(discriminator(generated_images), real_output)
-
-                discriminator_loss_real = adversarial_loss(discriminator(real_images), real_output)
-                discriminator_loss_fake = adversarial_loss(discriminator(generated_images.detach()), fake_output)
-                discriminator_loss = (discriminator_loss_real + discriminator_loss_fake) / 2
-
-                val_losses.append((generator_loss.item(), discriminator_loss.item()))
-
-        avg_val_generator_loss = sum([loss[0] for loss in val_losses]) / len(val_losses)
-        avg_val_discriminator_loss = sum([loss[1] for loss in val_losses]) / len(val_losses)
-        print(f"[Epoch {epoch + 1:=4d}/{EPOCHS}] [Batch {i + 1:=4d}/{len(train_loader)}] ---> "
-                f"[D Loss: {avg_val_discriminator_loss:.6f}] [G Loss: {avg_val_generator_loss:.6f}]-(Validation report)")
-
-        # Save losses
-        losses.append((avg_val_generator_loss, avg_val_discriminator_loss))
-
-        if epoch % SAVE_OUTPUT_IMAGE_STEP == 0:
-            image_filename = f'{GENERATED_IMAGES_PATH}/{epoch+1}.png'
+        if current_epoch % SAVE_OUTPUT_IMAGE_STEP == 0:
+            image_filename = f'{GENERATED_IMAGES_PATH}/{current_epoch+1}.png'
             generator_inputs = Variable(Tensor(np.random.normal(0, 1, (16, INPUT_VECTOR_LENGTH)))).to(device)
-            generator_outputs = generator(generator_inputs)
+            generator_outputs = generator(generator_inputs).to(device)
             save_image(generator_outputs.data, image_filename, nrow=4, normalize=True)
-            images_for_gif.append(imageio.v2.imread(image_filename))
+            # output_gif_images.append(imageio.v2.imread(image_filename))
 
             # Save models
-            save_models(generator, discriminator, epoch, SAVE_OUTPUT_IMAGE_STEP)
+            save_models(generator, discriminator, current_epoch, SAVE_OUTPUT_IMAGE_STEP)
 
-    return losses, images_for_gif
+            # Save losses
+            # losses.append((discriminator_loss.item(), generator_loss.item()))
+            generator_losses.append(generator_loss.item())
+            discriminator_losses.append(discriminator_loss.item())
+
+            # report_training_process(losses, output_gif_images)
+            save_losses_to_csv(generator_losses,
+                               discriminator_losses,
+                               f'{OUTPUT_REPORT_PATH}/generator_losses.csv',
+                               f'{OUTPUT_REPORT_PATH}/discriminator_losses.csv')
+
+    # return losses, output_gif_images
+    return generator_losses, discriminator_losses
 
 ### Visualization parameters ###
-losses = []
-output_gif_images = []
+generator_losses = []
+discriminator_losses = []
 
-try:
-    losses, output_gif_images = train(losses, output_gif_images)
-except KeyboardInterrupt:
-    report_training_process(losses, output_gif_images)
-finally:
-    print("Training interrupted by user.")
+generator_losses, discriminator_losses, train(generator_losses, discriminator_losses)
+# report_training_process(losses, output_gif_images)
+save_losses_to_csv(generator_losses,
+                   discriminator_losses,
+                   f'{OUTPUT_REPORT_PATH}/generator_losses.csv',
+                   f'{OUTPUT_REPORT_PATH}/discriminator_losses.csv')

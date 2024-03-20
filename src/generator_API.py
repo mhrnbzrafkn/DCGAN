@@ -15,64 +15,91 @@ OUTPUT_IMAGE_ROWS = int(math.sqrt(NUMBER_OF_OUTPUT_IMAGES))
 
 BASE_PATH = './training-src/output_results'
 
-INPUT_VECTOR_LENGTH = 64
+# INPUT_VECTOR_LENGTH = 128
+# NEURALNET_DEEP = 128
+
 TRAINED_MODELS_PATH = f'{BASE_PATH}/'
 
-NEURALNET_DEEP = 64
-
 # Define the pattern to match filenames
-PATTERN = re.compile(r'^generator-\d+\.pth$')
+PATTERN = re.compile(r'^generator-scripted-\d+\.pt$')
 
 OUTPUT_IMAGE_FORMAT = 'JPEG'
 
-### Generator Model ###
-class Generator(nn.Module):
-    def __init__(self, input_vector_length):
-        super(Generator, self).__init__()
-        self.deep = NEURALNET_DEEP
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-        self.fc1 = nn.Linear(input_vector_length, 4*4*self.deep*8)
-        
-        self.conv1 = nn.ConvTranspose2d(in_channels=self.deep*8, out_channels=self.deep*4, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(self.deep*4)
-        self.relu1 = nn.ReLU(inplace=True)
+# ### Generator Model ###
+# class Generator(nn.Module):
+#     def __init__(self, noise_size: int):
+#         super(Generator, self).__init__()
+#         self.noise_size = noise_size
+#         self.epsilon = 0.00001
+#         self.deep = NEURALNET_DEEP
 
-        self.conv2 = nn.ConvTranspose2d(in_channels=self.deep*4, out_channels=self.deep*2, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(self.deep*2)
-        self.relu2 = nn.ReLU(inplace=True)
+#         self.model = nn.Sequential(
+#             nn.Linear(self.noise_size, 8*8*self.deep*16),
+#             nn.LeakyReLU(0.2),
+#             nn.Unflatten(1, (self.deep*16, 8, 8)),
 
-        self.conv3 = nn.ConvTranspose2d(in_channels=self.deep*2, out_channels=self.deep, kernel_size=4, stride=2, padding=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(self.deep)
-        self.relu3 = nn.ReLU(inplace=True)
+#             nn.ConvTranspose2d(self.deep*16, self.deep*8, kernel_size=4, stride=2, padding=1),
+#             nn.BatchNorm2d(self.deep*8, momentum=0.9, eps=self.epsilon),
+#             nn.LeakyReLU(0.2),
 
-        self.conv4 = nn.ConvTranspose2d(in_channels=self.deep, out_channels=3, kernel_size=4, stride=2, padding=1, bias=False)
-        self.tanh = nn.Tanh()
+#             nn.ConvTranspose2d(self.deep*8, self.deep*8, kernel_size=3, stride=1, padding=1),
+#             nn.BatchNorm2d(self.deep*8, momentum=0.9, eps=self.epsilon),
+#             nn.LeakyReLU(0.2),
 
-    def forward(self, x):
-        x = self.fc1(x)
-        x = x.view(-1, self.deep*8, 4, 4)
-        x = self.relu1(self.bn1(self.conv1(x)))
-        x = self.relu2(self.bn2(self.conv2(x)))
-        x = self.relu3(self.bn3(self.conv3(x)))
-        x = self.conv4(x)
-        x = self.tanh(x)
-        return x
+#             nn.ConvTranspose2d(self.deep*8, self.deep*4, kernel_size=4, stride=2, padding=1),
+#             nn.BatchNorm2d(self.deep*4, momentum=0.9, eps=self.epsilon),
+#             nn.LeakyReLU(0.2),
+
+#             nn.ConvTranspose2d(self.deep*4, self.deep*4, kernel_size=3, stride=1, padding=1),
+#             nn.BatchNorm2d(self.deep*4, momentum=0.9, eps=self.epsilon),
+#             nn.LeakyReLU(0.2),
+
+#             nn.ConvTranspose2d(self.deep*4, self.deep*2, kernel_size=4, stride=2, padding=1),
+#             nn.BatchNorm2d(self.deep*2, momentum=0.9, eps=self.epsilon),
+#             nn.LeakyReLU(0.2),
+
+#             nn.ConvTranspose2d(self.deep*2, self.deep*2, kernel_size=3, stride=1, padding=1),
+#             nn.BatchNorm2d(self.deep*2, momentum=0.9, eps=self.epsilon),
+#             nn.LeakyReLU(0.2),
+
+#             nn.ConvTranspose2d(self.deep*2, self.deep, kernel_size=4, stride=2, padding=1),
+#             nn.BatchNorm2d(self.deep, momentum=0.9, eps=self.epsilon),
+#             nn.LeakyReLU(0.2),
+
+#             nn.ConvTranspose2d(self.deep, self.deep, kernel_size=3, stride=1, padding=1),
+#             nn.BatchNorm2d(self.deep, momentum=0.9, eps=self.epsilon),
+#             nn.LeakyReLU(0.2),
+            
+#             nn.ConvTranspose2d(self.deep, 3, kernel_size=3, stride=1, padding=1),
+#             nn.Tanh()
+#         )
+
+#     def forward(self, x):
+#         return self.model(x)
 
 def generate_image(inputs, matching_files):
     # Instantiate the Generator class
-    generator = Generator(INPUT_VECTOR_LENGTH)
+    # generator = Generator(INPUT_VECTOR_LENGTH)
     # Load the state dictionary
     matching_file_path = os.path.join(TRAINED_MODELS_PATH, matching_files[0])
-    state_dict = torch.load(matching_file_path, map_location=torch.device('cpu'))
+    # state_dict = torch.load(matching_file_path, map_location=torch.device('cpu'))
+
+    generator = torch.jit.load(matching_file_path)
+    generator = generator.to(device)
+    print(matching_file_path)
+    for param_tensor in generator.state_dict():
+        print(param_tensor, "\t", generator.state_dict()[param_tensor].size())
 
     # Load the state dictionary into the model
-    generator.load_state_dict(state_dict)
+    # generator.load_state_dict(state_dict)
     # Set the model to evaluation mode (important for models with Batch Normalization)
     generator.eval()
 
     # Generate image
-    generator_inputs = torch.FloatTensor([inputs])
-    generator_outputs = generator(generator_inputs)
+    generator_inputs = torch.FloatTensor([inputs]).to(device)
+    generator_outputs = generator(generator_inputs).to(device)
 
     return generator_outputs
 
@@ -116,6 +143,7 @@ def get_image():
 
     # Get a list of all files in the directory
     all_files = os.listdir(TRAINED_MODELS_PATH)
+    print(all_files)
 
     # Filter out files that match the pattern
     matching_files = [file for file in all_files if PATTERN.match(file)]
@@ -129,7 +157,7 @@ def get_image():
         save_image(generator_output.data, temp_image_path, nrow=4, normalize=True)
     
         # Convert tensor to PIL Image
-        pil_image = torchvision.transforms.ToPILImage()(generator_output[0].detach().cpu())
+        pil_image = torchvision.transforms.ToPILImage()(generator_output[0].detach().cuda())
 
         # Convert PIL Image to bytes
         image_bytes = io.BytesIO()

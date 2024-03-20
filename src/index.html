@@ -63,7 +63,7 @@
     let inputs = [];
 
     // Number of input elements
-    const numInputs = 64;
+    const numInputs = 256;
 
     // Generate input elements
     function generateInputs() {
@@ -74,8 +74,8 @@
         const input = document.createElement('input');
         input.type = 'range';
         input.id = `input${i}`;
-        input.min = -2;
-        input.max = 2;
+        input.min = -1;
+        input.max = 1;
         input.value = 0;
         input.step = 0.01;
         input.onchange = () => updateInputs(i);
@@ -93,8 +93,6 @@
       }
     }
 
-    generateInputs(); // Generate input elements initially
-
     // Function to update input values when track-bar value changes
     function updateInputs(index) {
       inputs[index] = parseFloat(document.getElementById(`input${index}`).value);
@@ -103,7 +101,7 @@
 
     // Function to generate random value for a specific track-bar
     function setRandomValue(index) {
-      inputs[index] = Math.random() * 4 - 2; // Random value between -2 and 2
+      inputs[index] = Math.random() * 2 - 1; // Random value between -2 and 2
       document.getElementById(`input${index}`).value = inputs[index]; // Update input element
       generateImage(); // Generate image with new random value
     }
@@ -111,7 +109,7 @@
     // Function to set random values for all track-bars
     function setRandomValues() {
       for (let i = 0; i < inputs.length; i++) {
-        inputs[i] = Math.random() * 4 - 2; // Random value between -2 and 2
+        inputs[i] = Math.random() * 2 - 1; // Random value between -2 and 2
         document.getElementById(`input${i}`).value = inputs[i]; // Update input element
       }
       generateImage(); // Generate image with new random values
@@ -148,6 +146,9 @@
         alert('Error: Unable to generate image.');
       }
     }
+
+    generateInputs(); // Generate input elements initially
+    setRandomValues();
   </script>
 </body>
 </html>
