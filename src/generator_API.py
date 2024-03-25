@@ -27,74 +27,17 @@ OUTPUT_IMAGE_FORMAT = 'JPEG'
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-# ### Generator Model ###
-# class Generator(nn.Module):
-#     def __init__(self, noise_size: int):
-#         super(Generator, self).__init__()
-#         self.noise_size = noise_size
-#         self.epsilon = 0.00001
-#         self.deep = NEURALNET_DEEP
-
-#         self.model = nn.Sequential(
-#             nn.Linear(self.noise_size, 8*8*self.deep*16),
-#             nn.LeakyReLU(0.2),
-#             nn.Unflatten(1, (self.deep*16, 8, 8)),
-
-#             nn.ConvTranspose2d(self.deep*16, self.deep*8, kernel_size=4, stride=2, padding=1),
-#             nn.BatchNorm2d(self.deep*8, momentum=0.9, eps=self.epsilon),
-#             nn.LeakyReLU(0.2),
-
-#             nn.ConvTranspose2d(self.deep*8, self.deep*8, kernel_size=3, stride=1, padding=1),
-#             nn.BatchNorm2d(self.deep*8, momentum=0.9, eps=self.epsilon),
-#             nn.LeakyReLU(0.2),
-
-#             nn.ConvTranspose2d(self.deep*8, self.deep*4, kernel_size=4, stride=2, padding=1),
-#             nn.BatchNorm2d(self.deep*4, momentum=0.9, eps=self.epsilon),
-#             nn.LeakyReLU(0.2),
-
-#             nn.ConvTranspose2d(self.deep*4, self.deep*4, kernel_size=3, stride=1, padding=1),
-#             nn.BatchNorm2d(self.deep*4, momentum=0.9, eps=self.epsilon),
-#             nn.LeakyReLU(0.2),
-
-#             nn.ConvTranspose2d(self.deep*4, self.deep*2, kernel_size=4, stride=2, padding=1),
-#             nn.BatchNorm2d(self.deep*2, momentum=0.9, eps=self.epsilon),
-#             nn.LeakyReLU(0.2),
-
-#             nn.ConvTranspose2d(self.deep*2, self.deep*2, kernel_size=3, stride=1, padding=1),
-#             nn.BatchNorm2d(self.deep*2, momentum=0.9, eps=self.epsilon),
-#             nn.LeakyReLU(0.2),
-
-#             nn.ConvTranspose2d(self.deep*2, self.deep, kernel_size=4, stride=2, padding=1),
-#             nn.BatchNorm2d(self.deep, momentum=0.9, eps=self.epsilon),
-#             nn.LeakyReLU(0.2),
-
-#             nn.ConvTranspose2d(self.deep, self.deep, kernel_size=3, stride=1, padding=1),
-#             nn.BatchNorm2d(self.deep, momentum=0.9, eps=self.epsilon),
-#             nn.LeakyReLU(0.2),
-            
-#             nn.ConvTranspose2d(self.deep, 3, kernel_size=3, stride=1, padding=1),
-#             nn.Tanh()
-#         )
-
-#     def forward(self, x):
-#         return self.model(x)
-
 def generate_image(inputs, matching_files):
-    # Instantiate the Generator class
-    # generator = Generator(INPUT_VECTOR_LENGTH)
-    # Load the state dictionary
     matching_file_path = os.path.join(TRAINED_MODELS_PATH, matching_files[0])
-    # state_dict = torch.load(matching_file_path, map_location=torch.device('cpu'))
 
     generator = torch.jit.load(matching_file_path)
     generator = generator.to(device)
-    print(matching_file_path)
-    for param_tensor in generator.state_dict():
-        print(param_tensor, "\t", generator.state_dict()[param_tensor].size())
 
-    # Load the state dictionary into the model
-    # generator.load_state_dict(state_dict)
-    # Set the model to evaluation mode (important for models with Batch Normalization)
+    # Print model information
+    # print(matching_file_path)
+    # for param_tensor in generator.state_dict():
+    #     print(param_tensor, "\t", generator.state_dict()[param_tensor].size())
+        
     generator.eval()
 
     # Generate image
@@ -165,7 +108,6 @@ def get_image():
         image_bytes.seek(0)
 
         # Send the image bytes directly as the response
-        # return send_file(image_bytes, mimetype=f'image/{OUTPUT_IMAGE_FORMAT.lower()}')
         return send_file(temp_image_path, mimetype=f'image/{OUTPUT_IMAGE_FORMAT.lower()}')
     else:
         return jsonify({'success': False, 'message': 'No matching files found.'})

@@ -20,7 +20,7 @@ matching_files = [file for file in all_files if pattern.match(file)]
 # Load the state_dict from the first matching file
 if matching_files:
     # Instantiate the Generator class
-    generator = Generator(INPUT_VECTOR_LENGTH)
+    generator = Generator(input_noise_size )
     # Load the state dictionary
     matching_file_path = os.path.join(TRAINED_MODELS_PATH, matching_files[0])
     state_dict = torch.load(matching_file_path, map_location=torch.device('cpu'))
