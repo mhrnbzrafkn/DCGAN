@@ -33,51 +33,16 @@ def generate_image(inputs, matching_files):
     generator = torch.jit.load(matching_file_path)
     generator = generator.to(device)
 
-    # Print model information
-    # print(matching_file_path)
-    # for param_tensor in generator.state_dict():
-    #     print(param_tensor, "\t", generator.state_dict()[param_tensor].size())
-        
     generator.eval()
 
     # Generate image
-    generator_inputs = torch.FloatTensor([inputs]).to(device)
-    generator_outputs = generator(generator_inputs).to(device)
+    inputs = torch.FloatTensor(inputs).unsqueeze(0).unsqueeze(-1).unsqueeze(-1).to(device)
+    generator_outputs = generator(inputs).to(device)
 
     return generator_outputs
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-
-@app.route('/get-image-json', methods=['POST'])
-def get_image_json():
-    data = request.json
-    inputs = data['inputs']
-    
-    # Get a list of all files in the directory
-    all_files = os.listdir(TRAINED_MODELS_PATH)
-
-    # Filter out files that match the pattern
-    matching_files = [file for file in all_files if PATTERN.match(file)]
-
-    # Load the state_dict from the first matching file
-    if matching_files:
-        generator_output = generate_image(inputs, matching_files)
-
-        # Convert tensor to PIL Image
-        pil_image = torchvision.transforms.ToPILImage()(generator_output[0].detach().cpu())
-
-        # Convert PIL Image to bytes
-        image_bytes = io.BytesIO()
-        pil_image.save(image_bytes, format=OUTPUT_IMAGE_FORMAT)
-        image_bytes.seek(0)
-
-        # Convert bytes to base64 encoded string
-        base64_img_str = base64.b64encode(image_bytes.read()).decode()
-
-        return jsonify({'success': True, 'message': 'Image generated successfully.', 'image': base64_img_str})
-    else:
-        return jsonify({'success': False, 'message': 'No matching files found.'})
 
 @app.route('/get-image', methods=['POST'])
 def get_image():
@@ -86,7 +51,6 @@ def get_image():
 
     # Get a list of all files in the directory
     all_files = os.listdir(TRAINED_MODELS_PATH)
-    print(all_files)
 
     # Filter out files that match the pattern
     matching_files = [file for file in all_files if PATTERN.match(file)]

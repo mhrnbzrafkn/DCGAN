@@ -29,7 +29,7 @@
 
     #input-container {
       text-align: center;
-      margin: auto;
+     
     }
 
     #input-container input {
@@ -51,12 +51,21 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
 </head>
 <body>
-  <h1 id="header-text">Random Face Generator</h1>
-  <div id="image-container"></div>
-  <button id="random-button" onclick="setRandomValues()">Generate Random Face ↻</button>
-  <div id="input-container">
-    <!-- Input elements will be dynamically generated here -->
+  <h1 id="header-text">Random Image Generator</h1>
+  
+  <div style="display: flex; justify-content: center; max-width: 1320px; margin: auto;gap: 2rem;">
+    <div>
+        <div id="image-container">
+        <img src="https://t3.ftcdn.net/jpg/04/60/01/36/360_F_460013622_6xF8uN6ubMvLx0tAJECBHfKPoNOR5cRa.jpg" alt="">
+        </div>
+        <button id="random-button" onclick="setRandomValues()">Generate Random Image ↻</button>
+    </div>
+
+    <div style="height: 70vh; overflow-y: scroll;" id="input-container">
+      <!-- Input elements will be dynamically generated here -->
+    </div>
   </div>
+
 
   <script>
     // Define initial input array
