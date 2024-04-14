@@ -1,43 +1,36 @@
-# import torch
-# import re
-# import math
-# from run import *
+import io
+import re
+import os
+import uuid
+import torch
+import torchvision
+from torchvision.utils import save_image
 
-# # to test the trained model, you can make a simple application like this code down below or make an API.
+base_path = './training-src'
+training_model_path = f'{base_path}/output_results'
+pattern = re.compile(r'^generator-scripted-\d+\.pt$')
+output_image_format = 'jpeg'
+input_noise_size = 128
 
-# NUMBER_OF_OUTPUT_IMAGES = 1
-# OUTPUT_IMAGE_ROWS = int(math.sqrt(NUMBER_OF_OUTPUT_IMAGES))
+images_rows = 10
+images_cols = 10
+number_of_images_to_generate = images_rows * images_cols
 
-# # Define the pattern to match filenames
-# pattern = re.compile(r'^generator-\d+\.pth$')
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+# device = torch.device('cpu')
+all_files = os.listdir(training_model_path)
+matching_files = [file for file in all_files if pattern.match(file)]
+matching_file_path = os.path.join(training_model_path, matching_files[0])
+generator = torch.jit.load(matching_file_path)
+generator = generator.to(device)
+generator.eval()
 
-# # Get a list of all files in the directory
-# all_files = os.listdir(TRAINED_MODELS_PATH)
-
-# # Filter out files that match the pattern
-# matching_files = [file for file in all_files if pattern.match(file)]
-
-# # Load the state_dict from the first matching file
-# if matching_files:
-#     # Instantiate the Generator class
-#     generator = Generator(input_noise_size )
-#     # Load the state dictionary
-#     matching_file_path = os.path.join(TRAINED_MODELS_PATH, matching_files[0])
-#     state_dict = torch.load(matching_file_path, map_location=torch.device('cpu'))
-
-#     # Load the state dictionary into the model
-#     generator.load_state_dict(state_dict)
-#     # Set the model to evaluation mode (important for models with Batch Normalization)
-#     generator.eval()
-
-#     image_filename = f'{GENERATED_TEST_IMAGES_PATH}/output.png'
-#     Tensor = torch.FloatTensor
-#     inputs = [
-#         [-2, -1, -0.5, 0, 0.5, 0.7, 1, 2]
-#     ]
-#     # generator_inputs = Variable(Tensor(np.random.normal(0, 1, (NUMBER_OF_OUTPUT_IMAGES, INPUT_VECTOR_LENGTH))))
-#     generator_inputs = Variable(Tensor(inputs))
-#     generator_outputs = generator(generator_inputs)
-#     save_image(generator_outputs.data, image_filename, nrow=OUTPUT_IMAGE_ROWS, normalize=True)
-# else:
-#     print("No matching files found.")
+if matching_files:
+    inputs = torch.randn(number_of_images_to_generate, input_noise_size, 1, 1, device=device).to(device)
+    generator_output = generator(inputs)
+    temp_image_path = f'{base_path}/output_results/{uuid.uuid4()}.{output_image_format}'
+    save_image(generator_output.data, temp_image_path, nrow=images_rows, normalize=True)
+    pil_image = torchvision.transforms.ToPILImage()(generator_output[0].detach().cuda())
+    image_bytes = io.BytesIO()
+    pil_image.save(image_bytes, format=output_image_format)
+    image_bytes.seek(0)

@@ -36,11 +36,12 @@ TRAINING_IMAGES_PATH = f'{RESOURCES_PATH}/training_images'
 input_noise_size = 128
 neural_net_deep = 64
 image_shape = (3, 64, 64)
-max_epochs = 250
+max_epochs = 200
 batch_size = 16
 save_output_image_step = 1
-discriminator_learning_rate = 0.0002
-generator_learning_rate = discriminator_learning_rate/2
+discriminator_learning_rate = 0.0001
+generator_learning_rate = 0.0001
+# generator_learning_rate = discriminator_learning_rate/2
 
 class Generator(nn.Module):
     def __init__(self, noise_size: int, deep: int):
@@ -48,23 +49,23 @@ class Generator(nn.Module):
         self.model = nn.Sequential(
             # Input: [128]
             nn.ConvTranspose2d(noise_size, deep*8, kernel_size=4, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(deep*8, momentum=0.5),
             nn.ReLU(True),
+            nn.BatchNorm2d(deep*8, momentum=0.8),
             # [512, 4, 4]
 
             nn.ConvTranspose2d(deep*8, deep*4, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(deep*4, momentum=0.5),
             nn.ReLU(True),
+            nn.BatchNorm2d(deep*4, momentum=0.8),
             # [256, 8, 8]
 
             nn.ConvTranspose2d(deep*4, deep*2, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(deep*2, momentum=0.5),
             nn.ReLU(True),
+            nn.BatchNorm2d(deep*2, momentum=0.8),
             # [128, 16, 16]
 
             nn.ConvTranspose2d(deep*2, deep, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(deep, momentum=0.5),
             nn.ReLU(True),
+            nn.BatchNorm2d(deep, momentum=0.8),
             # [64, 32, 32]
 
             nn.ConvTranspose2d(deep, image_shape[0], kernel_size=4, stride=2, padding=1, bias=False),
@@ -85,18 +86,21 @@ class Discriminator(nn.Module):
             # [64, 32, 32]
 
             nn.Conv2d(deep, deep*2, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(deep*2, momentum=0.5),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm2d(deep*2, momentum=0.8),
+            nn.Dropout2d(0.2),
             # [128, 16, 16]
 
             nn.Conv2d(deep*2, deep*4, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(deep*4, momentum=0.5),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm2d(deep*4, momentum=0.8),
+            nn.Dropout2d(0.2),
             # [256, 8, 8]
 
             nn.Conv2d(deep*4, deep*8, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(deep*8, momentum=0.5),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm2d(deep*8, momentum=0.8),
+            nn.Dropout2d(0.2),
             # [512, 4, 4]
 
             nn.Conv2d(deep*8, 1, kernel_size=4, stride=1, padding=0, bias=False),

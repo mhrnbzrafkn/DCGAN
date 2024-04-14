@@ -26,7 +26,7 @@ if matching_files:
     for i in range(number_of_images_to_generate):
         inputs = torch.randn(1, input_noise_size, 1, 1, device=device).to(device)
         generator_output = generator(inputs)
-        temp_image_path = f'{base_path}/training_images/generated_fake_images/{uuid.uuid4()}.{output_image_format}'
+        temp_image_path = f'{base_path}/output_results/generated_test_images/{uuid.uuid4()}.{output_image_format}'
         save_image(generator_output.data, temp_image_path, nrow=4, normalize=True)
         pil_image = torchvision.transforms.ToPILImage()(generator_output[0].detach().cuda())
         image_bytes = io.BytesIO()
